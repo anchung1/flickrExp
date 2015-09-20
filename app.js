@@ -25,7 +25,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 console.log('IN APP JS');
 console.log(path.resolve(__dirname,'..', 'reactapp/dist'));
-app.use(express.static(path.resolve(__dirname,'..', 'flickr/dist')));
+app.use(express.static(path.resolve(__dirname,'..', 'flickr1/dist')));
 
 //app.use('/', routes);
 app.use('/users', users);

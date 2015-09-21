@@ -8,6 +8,7 @@ var db = require('../schema/schema.js');
 var Dora = db.Dora;
 var Users = db.Users;
 var Entry = db.Entry;
+var Flickr = db.Flickr;
 
 var api_key = "76cceea6d278cbd158a726e6860951e7";
 var flickrApiOptions = ["name=value", "format=json"];
@@ -58,13 +59,61 @@ function flickrRequest(method, options, req, res, next) {
 router.get('/greet', function (req, res, next) {
     console.log('greet');
 
+    Flickr.find({'userID':id}, function(err, entryList) {
+        if (err) return next(err);
+        if (!entryList || !entryList.length) return next();
 
+        console.log(entryList);
+        res.json(entryList);
+    });
     res.send('greetings');
 });
 
 router.get('/flickr', function(req, res, next) {
-    flickrApiOptions.push("per_page=3");
+    var count = req.query.count;
+    flickrApiOptions.push("per_page="+count);
     flickrRequest('flickr.photos.getRecent', flickrApiOptions, req, res, next);
+});
+
+router.post('/flickrSave', function(req, res, next) {
+    var id = req.signedCookies._id;
+
+    Users.findOne({_id: id}, 'name', function(err, user) {
+        if (err) return next(err);
+        if (!user) return next();
+
+        var store = new Flickr({url: req.body.image, userID: id});
+        store.save(function(err, store) {
+            if (err) return next(err);
+            if (!store) return next();
+
+            //console.log(store);
+            res.send('saved');
+        });
+
+    });
+});
+
+router.get('/flickrSaved', function(req, res, next) {
+    var id = req.signedCookies._id;
+
+    Users.findOne({_id: id}, 'name', function(err, user) {
+        if (err) return next(err);
+        if (!user) return next();
+
+        Flickr.find({'userID':id}, function(err, entryList) {
+            if (err) return next(err);
+            if (!entryList || !entryList.length) return next();
+
+            console.log(entryList);
+            var returnObj = {urls: []};
+            entryList.forEach(function(elem) {
+                returnObj.urls.push(elem.url);
+            });
+            res.json(returnObj);
+        })
+
+    });
 });
 
 router.post('/db', function (req, res, next) {

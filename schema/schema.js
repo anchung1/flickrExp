@@ -57,10 +57,31 @@ var entrySchema = entryMongoose.Schema({
 });
 var Entry = entryMongoose.model('entry', entrySchema);
 
+//=========================================================
+var flickrMongoose = require('mongoose');
+
+flickrMongoose.connect('mongodb://localhost/flickr');
+var flickrdb = flickrMongoose.connection;
+flickrdb.on('error', function () {
+    console.log('flickrMongoose connection error');
+});
+
+flickrdb.once('open', function () {
+    console.log('flickrMongoose connection open');
+});
+
+var flickrSchema = flickrMongoose.Schema({
+    userID: String,
+    url: String
+});
+var Flickr = flickrMongoose.model('flickr', flickrSchema);
+
+
 
 module.exports = {
     Dora: Dora,
     Entry: Entry,
-    Users: Users
+    Users: Users,
+    Flickr: Flickr
 };
 

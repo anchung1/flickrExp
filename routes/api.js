@@ -75,6 +75,23 @@ router.get('/flickr', function(req, res, next) {
     flickrRequest('flickr.photos.getRecent', flickrApiOptions, req, res, next);
 });
 
+router.get('/flickrSearch', function(req, res, next) {
+    var count = req.query.count;
+    var text = req.query.text;
+
+    console.log('count: ' + count);
+    console.log('text: ' + text);
+    console.log(req.query);
+
+    flickrApiOptions = ["name=value", "format=json"];
+    flickrApiOptions.push("per_page="+20);
+    flickrApiOptions.push("page=3");
+    flickrApiOptions.push("text="+text);
+    flickrRequest('flickr.photos.search', flickrApiOptions, req, res, next);
+
+});
+
+
 router.post('/flickrSave', function(req, res, next) {
     var id = req.signedCookies._id;
 

@@ -78,15 +78,17 @@ router.get('/flickr', function(req, res, next) {
 router.get('/flickrSearch', function(req, res, next) {
     var count = req.query.count;
     var text = req.query.text;
+    var page = req.query.page;
 
     console.log('count: ' + count);
     console.log('text: ' + text);
     console.log(req.query);
 
     flickrApiOptions = ["name=value", "format=json"];
-    flickrApiOptions.push("per_page="+20);
-    flickrApiOptions.push("page=3");
-    flickrApiOptions.push("text="+text);
+    if (count) flickrApiOptions.push("per_page="+count);
+    if (text) flickrApiOptions.push("text="+text);
+    if (page) flickrApiOptions.push("page="+page);
+
     flickrRequest('flickr.photos.search', flickrApiOptions, req, res, next);
 
 });

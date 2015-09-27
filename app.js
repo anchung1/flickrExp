@@ -23,9 +23,9 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser(credentials.cookieSecret)); //credentials.cookieSecret
 app.use(express.static(path.join(__dirname, 'public')));
 
-console.log('IN APP JS');
-console.log(path.resolve(__dirname,'..', 'reactapp/dist'));
-app.use(express.static(path.resolve(__dirname,'..', 'flickr1/dist')));
+var staticPath = path.resolve(__dirname,'..', 'flickr1/dist');
+console.log('SERVING FILE: ' + staticPath);
+app.use(express.static(staticPath));
 
 //app.use('/', routes);
 app.use('/users', users);

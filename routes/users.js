@@ -41,11 +41,11 @@ router.post('/create', function(req, res, next) {
         }
 
         if (entry) {
-            var err = {};
-            err.status = 500;
-            err.message = 'Entry exists.';
-            err.error = {};
-            return next(err);
+            var err1 = {};
+            err1.status = 500;
+            err1.message = 'Entry exists.';
+            err1.error = {};
+            return next(err1);
         }
 
         var store = new Users({

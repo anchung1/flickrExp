@@ -9,12 +9,127 @@ var Dora = db.Dora;
 var Users = db.Users;
 var Entry = db.Entry;
 var Flickr = db.Flickr;
+var MemoryGame = db.MemoryGame;
 
 var api_key = "76cceea6d278cbd158a726e6860951e7";
 var flickrApiOptions = ["name=value", "format=json"];
 
 //jsonFlickrApi({"photos":{"page":1,"pages":10,"perpage":100,"total":1000}});
 
+/* GET users listing. */
+router.get('/greet', function (req, res, next) {
+    console.log('greet');
+
+    /*Flickr.find({'userID':id}, function(err, entryList) {
+        if (err) return next(err);
+        if (!entryList || !entryList.length) return next();
+
+        console.log(entryList);
+        res.json(entryList);
+    });*/
+    res.send('greetings');
+});
+
+function getDateStr() {
+    var date = new Date();
+    var dateArr = date.toString().split(' ');
+    var dateStr = '';
+
+    dateArr.forEach(function(elem, i) {
+        if (i<4) dateStr += elem + " ";
+    });
+    return (dateStr.trim());
+}
+
+router.post('/daily', function(req, res, next) {
+
+    var dateStr = getDateStr();
+
+    //check if its high score
+    var thisScore = req.body.score;
+    var name = req.body.name;
+
+
+    MemoryGame.find({}, function(err, entryList) {
+        if (err) return next(err);
+
+        if (!entryList || entryList.length ==0 ) {
+            var score = new MemoryGame({
+                allTimeHighName: name,
+                allTimeHighScore: thisScore,
+                allTimeHighDate: dateStr,
+                dailyHighName: name,
+                dailyHighScore: thisScore,
+                dailyDate: dateStr
+            });
+            score.save(function(err, score) {
+                if (err) return next(err);
+                if (!score) return next();
+
+
+                return res.json({allTimeHighScore: true, dailyHighScore: true, score: thisScore});
+            });
+        } else {
+            if (entryList[0].allTimeHighScore < thisScore) {
+
+                entryList[0].allTimeHighName = name;
+                entryList[0].allTimeHighScore = thisScore;
+                entryList[0].allTimeHighDate = dateStr;
+                entryList[0].dailyHighName = name;
+                entryList[0].dailyHighScore = thisScore;
+                entryList[0].dailyDate = dateStr;
+
+                entryList[0].save(function(err, elem) {
+                    if (err) return next(err);
+                    if (!elem) return next();
+
+                    return res.json({allTimeHighScore: true, dailyHighScore: true, score: thisScore});
+                });
+
+            }
+
+            if (entryList[0].dailyHighScore < thisScore) {
+                entryList[0] = {
+                    dailyHighName: name,
+                    dailyHighScore: thisScore,
+                    dailyDate: dateStr
+                };
+                entryList[0].save(function(err, elem) {
+                    if (err) return next(err);
+                    if (!elem) return next();
+
+                    return res.json({allTimeHighScore: false, dailyHighScore: true, score: thisScore});
+                })
+            }
+        }
+
+    });
+});
+
+router.get('/daily', function(req, res, next) {
+    var dateStr = getDateStr();
+    MemoryGame.find({dailyDate: dateStr}, function(err, entryList) {
+
+        if (err) return next(err);
+        if (!entryList || !entryList.length) return next();
+
+        var returnObj = [];
+        entryList.forEach(function(elem) {
+            returnObj.push(elem)
+        });
+
+        res.json(returnObj);
+    });
+});
+
+router.delete('/daily/:key', function(req, res, next){
+
+    MemoryGame.findOneAndRemove({dailyHighName: req.params.key}, function(err, elem) {
+        if (err) return next(err);
+        res.send('item deleted: ' + req.params.key);
+
+    })
+});
 
 function constructLinks(body) {
 
@@ -54,20 +169,6 @@ function flickrRequest(method, options, req, res, next) {
 
 
 }
-
-/* GET users listing. */
-router.get('/greet', function (req, res, next) {
-    console.log('greet');
-
-    Flickr.find({'userID':id}, function(err, entryList) {
-        if (err) return next(err);
-        if (!entryList || !entryList.length) return next();
-
-        console.log(entryList);
-        res.json(entryList);
-    });
-    res.send('greetings');
-});
 
 router.get('/flickr', function(req, res, next) {
     var count = req.query.count;

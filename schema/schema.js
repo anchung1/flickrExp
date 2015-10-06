@@ -76,12 +76,36 @@ var flickrSchema = flickrMongoose.Schema({
 });
 var Flickr = flickrMongoose.model('flickr', flickrSchema);
 
+//======================================================
+
+var MemScoreMongoose = require('mongoose');
+
+MemScoreMongoose.connect('mongodb://localhost/memoryGame');
+var memScoredb = MemScoreMongoose.connection;
+memScoredb.on('error', function () {
+    console.log('MemScoreMongoose connection error');
+});
+
+memScoredb.once('open', function () {
+    console.log('MemScoreMongoose connection open');
+});
+
+var memScoreSchema = MemScoreMongoose.Schema({
+    allTimeHighName: String,
+    allTimeHighScore: Number,
+    allTimeHighDate: String,
+    dailyHighName: String,
+    dailyHighScore: Number,
+    dailyDate: String
+});
+var MemoryGame = MemScoreMongoose.model('memoryGame', memScoreSchema);
 
 
 module.exports = {
     Dora: Dora,
     Entry: Entry,
     Users: Users,
-    Flickr: Flickr
+    Flickr: Flickr,
+    MemoryGame: MemoryGame
 };
 

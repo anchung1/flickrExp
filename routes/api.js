@@ -2,6 +2,7 @@ var express = require('express');
 var router = express.Router();
 var path = require('path');
 var request = require('request');
+var Promise = require('promise');
 
 var db = require('../schema/schema.js');
 //var Dora = mongoose.model('dora', doraSchema);
@@ -14,19 +15,27 @@ var MemoryGame = db.MemoryGame;
 var api_key = "76cceea6d278cbd158a726e6860951e7";
 var flickrApiOptions = ["name=value", "format=json"];
 
+var MongoClient = require('mongodb').MongoClient;
+var assert = require('assert');
+
+var scoreDB;
+connectScoreDB();
+
+function connectScoreDB() {
+    var url = 'mongodb://localhost:27017/scores';
+
+    MongoClient.connect(url, function (err, db) {
+        scoreDB = db;
+    });
+}
+
+
+
 //jsonFlickrApi({"photos":{"page":1,"pages":10,"perpage":100,"total":1000}});
 
 /* GET users listing. */
 router.get('/greet', function (req, res, next) {
     console.log('greet');
-
-    /*Flickr.find({'userID':id}, function(err, entryList) {
-        if (err) return next(err);
-        if (!entryList || !entryList.length) return next();
-
-        console.log(entryList);
-        res.json(entryList);
-    });*/
     res.send('greetings');
 });
 
@@ -36,7 +45,9 @@ function getDateStr() {
     var dateStr = '';
 
     dateArr.forEach(function(elem, i) {
-        if (i<4) dateStr += elem + " ";
+        if (i < 4) {
+            dateStr += elem + " ";
+        }
     });
     return (dateStr.trim());
 }
@@ -122,6 +133,7 @@ router.get('/daily', function(req, res, next) {
     });
 });
 
+
 router.delete('/daily/:key', function(req, res, next){
 
     MemoryGame.findOneAndRemove({dailyHighName: req.params.key}, function(err, elem) {
@@ -129,6 +141,102 @@ router.delete('/daily/:key', function(req, res, next){
         res.send('item deleted: ' + req.params.key);
 
     })
+});
+
+//references used:
+//http://mongodb.github.io/node-mongodb-native/2.0/api/
+//https://docs.mongodb.org/getting-started/node/update/
+//https://docs.mongodb.org/getting-started/shell/update/
+
+function recordAllTime(db, doInsert, req, res, next) {
+    var date = getDateStr();
+    var score = parseInt(req.body.score);
+    var msg = '';
+
+    console.log("recordAllTime: ");
+    db.collection('scores').update(
+        {allTimeHighScore: {$lt: score}},
+
+        {
+            allTimeHighName: req.body.name,
+            allTimeHighScore: score,
+            allTimeDate: date
+        },
+
+        {
+            upsert: doInsert
+        }
+        , function (err, result) {
+            if (err) {
+                return next(err);
+            }
+
+            if (result) {
+                msg = "Wrote all time high score";
+            } else {
+                msg = "Wrote daily high score";
+            }
+            return res.send(msg);
+        });
+
+}
+
+function recordDaily(count, db, req, res, next) {
+
+    var date = getDateStr();
+    var cursor;
+    var score = parseInt(req.body.score);
+
+    console.log("recordDaily: " + count);
+    if (count == 0) {
+        db.collection('scores').insertOne({
+            dailyDate: date,
+            dailyHigh: score,
+            dailyName: req.body.name
+        }, function(err, result) {
+            if (err) return next(err);
+            return recordAllTime(db, true, req, res, next);
+        });
+    } else {
+        db.collection('scores').updateOne(
+            {dailyDate: date, dailyHigh: {$lt: score}},
+            {
+                dailyDate: date,
+                dailyHigh: score,
+                dailyName: req.body.name
+            }
+            , function (err, result) {
+                if (err) return next(err);
+
+                //result has the number of docs updated
+                if (result == 0) {
+                    console.log('result is zero');
+                    return res.send("Not daily high");
+                }
+
+                return recordAllTime(db, false, req, res, next);
+
+            });
+    }
+
+}
+
+function insertData(db, req, res, next) {
+    var score = parseInt(req.body.score);
+
+    var cursor = db.collection('scores').find().count().then(function(count) {
+
+        //TODO: debug this tomorrow
+        recordDaily(count, db, req, res, next);
+
+    });
+
+
+}
+
+router.post('/mongotest', function(req, res, next) {
+    insertData(scoreDB, req, res, next);
+
 });
 
 function constructLinks(body) {

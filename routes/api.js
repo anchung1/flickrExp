@@ -52,96 +52,6 @@ function getDateStr() {
     return (dateStr.trim());
 }
 
-router.post('/daily', function(req, res, next) {
-
-    var dateStr = getDateStr();
-
-    //check if its high score
-    var thisScore = req.body.score;
-    var name = req.body.name;
-
-
-    MemoryGame.find({}, function(err, entryList) {
-        if (err) return next(err);
-
-        if (!entryList || entryList.length ==0 ) {
-            var score = new MemoryGame({
-                allTimeHighName: name,
-                allTimeHighScore: thisScore,
-                allTimeHighDate: dateStr,
-                dailyHighName: name,
-                dailyHighScore: thisScore,
-                dailyDate: dateStr
-            });
-            score.save(function(err, score) {
-                if (err) return next(err);
-                if (!score) return next();
-
-
-                return res.json({allTimeHighScore: true, dailyHighScore: true, score: thisScore});
-            });
-        } else {
-            if (entryList[0].allTimeHighScore < thisScore) {
-
-                entryList[0].allTimeHighName = name;
-                entryList[0].allTimeHighScore = thisScore;
-                entryList[0].allTimeHighDate = dateStr;
-                entryList[0].dailyHighName = name;
-                entryList[0].dailyHighScore = thisScore;
-                entryList[0].dailyDate = dateStr;
-
-                entryList[0].save(function(err, elem) {
-                    if (err) return next(err);
-                    if (!elem) return next();
-
-                    return res.json({allTimeHighScore: true, dailyHighScore: true, score: thisScore});
-                });
-
-            }
-
-            if (entryList[0].dailyHighScore < thisScore) {
-                entryList[0] = {
-                    dailyHighName: name,
-                    dailyHighScore: thisScore,
-                    dailyDate: dateStr
-                };
-                entryList[0].save(function(err, elem) {
-                    if (err) return next(err);
-                    if (!elem) return next();
-
-                    return res.json({allTimeHighScore: false, dailyHighScore: true, score: thisScore});
-                })
-            }
-        }
-
-    });
-});
-
-router.get('/daily', function(req, res, next) {
-    var dateStr = getDateStr();
-    MemoryGame.find({dailyDate: dateStr}, function(err, entryList) {
-
-        if (err) return next(err);
-        if (!entryList || !entryList.length) return next();
-
-        var returnObj = [];
-        entryList.forEach(function(elem) {
-            returnObj.push(elem)
-        });
-
-        res.json(returnObj);
-    });
-});
-
-
-router.delete('/daily/:key', function(req, res, next){
-
-    MemoryGame.findOneAndRemove({dailyHighName: req.params.key}, function(err, elem) {
-        if (err) return next(err);
-        res.send('item deleted: ' + req.params.key);
-
-    })
-});
 
 //references used:
 //http://mongodb.github.io/node-mongodb-native/2.0/api/
@@ -150,34 +60,34 @@ router.delete('/daily/:key', function(req, res, next){
 
 function recordAllTime(db, doInsert, req, res, next) {
     var date = getDateStr();
-    var score = parseInt(req.body.score);
-    var msg = '';
+    var score = parseInt(req.body.score, 10);
+    var scoreResult = {};
 
-    console.log("recordAllTime: ");
     db.collection('scores').update(
-        {allTimeHighScore: {$lt: score}},
+        {allTimeLowScore: {$gt: score}},
 
         {
-            allTimeHighName: req.body.name,
-            allTimeHighScore: score,
+            allTimeName: req.body.name,
+            allTimeLowScore: score,
             allTimeDate: date
         },
 
         {
             upsert: doInsert
-        }
-        , function (err, result) {
+        },
+        function (err, result) {
             if (err) {
                 return next(err);
             }
-
-            if (result) {
-                msg = "Wrote all time high score";
+            console.log(result.result.nModified);
+            if (result.result.nModified || doInsert) {
+                scoreResult = {daily: true, allTime: true, score: score};
             } else {
-                msg = "Wrote daily high score";
+                scoreResult = {daily: true, allTime: false, score: score};
             }
-            return res.send(msg);
-        });
+            return res.json(scoreResult);
+        }
+    );
 
 }
 
@@ -185,38 +95,59 @@ function recordDaily(count, db, req, res, next) {
 
     var date = getDateStr();
     var cursor;
-    var score = parseInt(req.body.score);
+    var score = parseInt(req.body.score, 10);
 
-    console.log("recordDaily: " + count);
     if (count == 0) {
         db.collection('scores').insertOne({
             dailyDate: date,
-            dailyHigh: score,
+            dailyLow: score,
             dailyName: req.body.name
         }, function(err, result) {
             if (err) return next(err);
             return recordAllTime(db, true, req, res, next);
         });
     } else {
-        db.collection('scores').updateOne(
-            {dailyDate: date, dailyHigh: {$lt: score}},
-            {
-                dailyDate: date,
-                dailyHigh: score,
-                dailyName: req.body.name
+        var collection = db.collection('scores');
+        var cursor = collection.find({dailyDate: date}).count().then(function(count) {
+            if (count==0) {
+                //no entries exist for this day
+                collection.insertOne({
+                    dailyDate: date,
+                    dailyLow: score,
+                    dailyName: req.body.name
+                }).then(
+                    function(result) {
+                        return recordAllTime(db, false, req, res, next);
+                    },
+                    function() {
+                        return next();
+                    }
+                );
+            } else {
+                //have entries for this day
+                collection.updateOne(
+                    {dailyDate: date, dailyLow: {$gt: score}},
+                    {
+                        dailyDate: date,
+                        dailyLow: score,
+                        dailyName: req.body.name
+                    }
+                    , function (err, result) {
+                        if (err) return next(err);
+
+                        //following is a sample result
+                        //result.result is: {"ok":1,"nModified":0,"n":0}
+                        if (result.result.nModified == 0) {
+                            return res.json({daily: false, allTime: false, score: score});
+                        }
+
+                        return recordAllTime(db, false, req, res, next);
+
+                    }
+                );
             }
-            , function (err, result) {
-                if (err) return next(err);
+        });
 
-                //result has the number of docs updated
-                if (result == 0) {
-                    console.log('result is zero');
-                    return res.send("Not daily high");
-                }
-
-                return recordAllTime(db, false, req, res, next);
-
-            });
     }
 
 }
@@ -225,16 +156,12 @@ function insertData(db, req, res, next) {
     var score = parseInt(req.body.score);
 
     var cursor = db.collection('scores').find().count().then(function(count) {
-
-        //TODO: debug this tomorrow
         recordDaily(count, db, req, res, next);
-
     });
-
 
 }
 
-router.post('/mongotest', function(req, res, next) {
+router.post('/daily', function(req, res, next) {
     insertData(scoreDB, req, res, next);
 
 });
